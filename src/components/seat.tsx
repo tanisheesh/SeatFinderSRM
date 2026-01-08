@@ -33,15 +33,19 @@ const SeatComponent = ({ id, status, bookedBy, currentUserId, userHasActiveBooki
   const isClickable = status === 'available' && !userHasActiveBooking || isMyBooking;
   
   // Determine visual variant
+  // Color flow: Available (white) → Reserved by user (yellow) → Occupied after QR scan (green)
+  // Reserved by others shows as blue/accent, occupied by others shows as green
   let variant: 'available' | 'occupied' | 'disabled' | 'reserved' | 'myBooking' | 'maintenance' | 'out-of-service';
-  if (isMyBooking) {
-    variant = 'myBooking';
+  if (status === 'occupied') {
+    variant = 'occupied'; // Green for occupied (regardless of who booked it)
+  } else if (status === 'reserved' && bookedBy === currentUserId) {
+    variant = 'myBooking'; // Yellow for user's own reservation (before QR check-in)
   } else if (status === 'available' && userHasActiveBooking) {
-    variant = 'disabled';
-  } else if (status === 'reserved' || status === 'occupied') {
-    variant = 'occupied';
+    variant = 'disabled'; // Disabled if user has active booking elsewhere
+  } else if (status === 'reserved') {
+    variant = 'reserved'; // Blue/accent color for reserved by others
   } else {
-    variant = status;
+    variant = status; // maintenance, out-of-service, available
   }
 
   const content = (

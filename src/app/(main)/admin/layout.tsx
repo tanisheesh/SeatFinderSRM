@@ -1,13 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers/auth-provider';
 import { AdminNav } from '@/components/admin/admin-nav';
 
-import { getAdminEmails } from '@/lib/admin-config';
-
-const ADMIN_EMAILS = getAdminEmails();
+import { getUserRole } from '@/lib/user-roles';
 
 export default function AdminLayout({
   children,
@@ -16,21 +14,35 @@ export default function AdminLayout({
 }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (!loading) {
+    async function checkAdminRole() {
+      if (!loading && user) {
+        const role = await getUserRole(user.uid);
+        setIsAdmin(role === 'admin');
+      } else if (!loading && !user) {
+        setIsAdmin(false);
+      }
+    }
+    
+    checkAdminRole();
+  }, [user, loading]);
+
+  useEffect(() => {
+    if (!loading && isAdmin !== null) {
       if (!user) {
         // Not logged in - redirect to auth immediately
-        router.replace('/auth');
-      } else if (!ADMIN_EMAILS.includes(user.email || '')) {
+        router.replace('/');
+      } else if (!isAdmin) {
         // Not an admin - redirect to dashboard immediately
         router.replace('/dashboard');
       }
     }
-  }, [user, loading, router]);
+  }, [user, loading, isAdmin, router]);
 
   // Show loading state
-  if (loading) {
+  if (loading || isAdmin === null) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -42,7 +54,7 @@ export default function AdminLayout({
   }
 
   // Show 404 if not admin (hide admin pages from regular users)
-  if (!user || !ADMIN_EMAILS.includes(user.email || '')) {
+  if (!user || !isAdmin) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <div className="text-center space-y-4">

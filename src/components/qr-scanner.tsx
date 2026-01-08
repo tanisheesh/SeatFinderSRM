@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
 import { ref, update, get } from 'firebase/database';
 import { db } from '@/lib/firebase';
@@ -29,6 +30,7 @@ export function QrScanner() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const router = useRouter();
 
   const processQRCode = useCallback(async (decodedText: string) => {
     // Prevent duplicate scans
@@ -65,7 +67,7 @@ export function QrScanner() {
         
         const bookingData = bookingSnapshot.val();
 
-        if (bookingData.status !== 'booked') {
+        if (bookingData.status !== 'pending') {
           throw new Error(`Cannot check in. Booking is ${bookingData.status}.`);
         }
 
@@ -78,7 +80,7 @@ export function QrScanner() {
 
         updates[`${seatRefPath}/status`] = 'occupied';
         updates[`${seatRefPath}/occupiedUntil`] = expiryTimestamp;
-        updates[`${bookingRefPath}/status`] = 'occupied';
+        updates[`${bookingRefPath}/status`] = 'active';
         updates[`${bookingRefPath}/entryTime`] = now.toISOString();
 
         await update(ref(db), updates);
@@ -88,6 +90,11 @@ export function QrScanner() {
           description: `Seat ${seatId} occupied until ${new Date(expiryTimestamp).toLocaleTimeString()}.`,
           duration: 3000,
         });
+
+        // Redirect to dashboard after successful check-in
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 2000);
 
       } else {
         updates[`${seatRefPath}/status`] = 'available';

@@ -1,5 +1,5 @@
 // Seat Types
-export type SeatStatus = 'available' | 'occupied' | 'reserved' | 'maintenance' | 'out-of-service';
+export type SeatStatus = 'available' | 'reserved' | 'occupied' | 'maintenance' | 'out-of-service';
 
 export interface MaintenanceInfo {
   reason: string;

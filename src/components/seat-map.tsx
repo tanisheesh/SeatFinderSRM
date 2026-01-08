@@ -55,19 +55,28 @@ export function SeatMap() {
       return;
     }
 
-    const activeBookingQuery = query(ref(db, `bookings/${user.uid}`), orderByChild('status'), equalTo('booked'));
+    const bookingsRef = ref(db, `bookings/${user.uid}`);
     
-    const listener = onValue(activeBookingQuery, (snapshot) => {
+    const listener = onValue(bookingsRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.val();
-        const [bookingId, bookingData] = Object.entries(data)[0];
-        setActiveBooking({ id: bookingId, ...(bookingData as any) });
+        // Find any booking with status 'pending' or 'active'
+        const activeBookingEntry = Object.entries(data).find(([_, bookingData]: [string, any]) => 
+          bookingData.status === 'pending' || bookingData.status === 'active'
+        );
+        
+        if (activeBookingEntry) {
+          const [bookingId, bookingData] = activeBookingEntry;
+          setActiveBooking({ id: bookingId, ...(bookingData as any) });
+        } else {
+          setActiveBooking(null);
+        }
       } else {
         setActiveBooking(null);
       }
     });
 
-    return () => off(activeBookingQuery, 'value', listener);
+    return () => off(bookingsRef, 'value', listener);
   }, [user]);
 
   useEffect(() => {
@@ -158,7 +167,11 @@ export function SeatMap() {
         setSeats(data);
       } else {
         // No seats found, initializing
-        initializeSeats();
+        initializeSeats().then(() => {
+          console.log('Database initialized');
+        }).catch((error: any) => {
+          console.error('Failed to initialize database:', error);
+        });
       }
       setLoading(false);
     }, (error) => {
@@ -335,10 +348,10 @@ export function SeatMap() {
           <div className="w-5 h-5 rounded-md bg-gray-300 dark:bg-gray-700 border-2 border-gray-400 dark:border-gray-600"></div>
           <span className="font-medium">Maintenance</span>
         </div>
-        {activeBooking && (
+        {activeBooking && activeBooking.status === 'pending' && (
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 rounded-md bg-yellow-500/80 border-2 border-yellow-600"></div>
-            <span className="font-medium">Your Booking</span>
+            <span className="font-medium">Your Reservation</span>
           </div>
         )}
       </div>

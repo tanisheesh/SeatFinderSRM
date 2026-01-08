@@ -9,12 +9,13 @@ import { useAuth } from '@/components/providers/auth-provider';
 import type { Seat, Booking } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Armchair, ArrowLeft, Clock, Info, Download } from 'lucide-react';
+import { Loader2, Armchair, ArrowLeft, Clock, Info, Download, QrCode } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import QRCode from 'react-qr-code';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import QRCodeLib from 'qrcode';
+import { validateBookingAction, validateSeatUpdate } from '@/lib/validation';
 
 export function BookingClient({ seatId, activeBooking }: { seatId: string, activeBooking: Booking | null }) {
   const { user } = useAuth();
@@ -174,6 +175,18 @@ export function BookingClient({ seatId, activeBooking }: { seatId: string, activ
     setLoading(true);
     
     try {
+      // Validate booking permission
+      const validation = await validateBookingAction(user.uid, 'create');
+      if (!validation.valid) {
+        toast({ 
+          variant: 'destructive', 
+          title: 'Permission Denied', 
+          description: validation.error 
+        });
+        setLoading(false);
+        return;
+      }
+
       // Calculate duration in minutes from now to selected end time
       const now = new Date();
       const [time12hr, time24hr] = endTime.split('|');
@@ -213,14 +226,34 @@ export function BookingClient({ seatId, activeBooking }: { seatId: string, activ
           updatedAt: nowISO,
       }
 
+      // Validate seat update permission
+      const seatUpdates = {
+        [`/seats/${floor}/${seatId}/status`]: 'reserved',
+        [`/seats/${floor}/${seatId}/bookedBy`]: user.uid,
+        [`/seats/${floor}/${seatId}/bookingId`]: newBookingRef.key,
+      };
+      
+      const seatValidation = await validateSeatUpdate(user.uid, seatUpdates);
+      if (!seatValidation.valid) {
+        toast({ 
+          variant: 'destructive', 
+          title: 'Permission Denied', 
+          description: seatValidation.error 
+        });
+        setLoading(false);
+        return;
+      }
+
       const updates: {[key: string]: any} = {};
-      updates[`/seats/${floor}/${seatId}/status`] = 'booked';
+      updates[`/seats/${floor}/${seatId}/status`] = 'reserved';
       updates[`/seats/${floor}/${seatId}/bookedBy`] = user.uid;
       updates[`/seats/${floor}/${seatId}/bookedAt`] = serverTimestamp();
       updates[`/seats/${floor}/${seatId}/bookingId`] = newBookingRef.key;
       updates[`/bookings/${user.uid}/${newBookingRef.key}`] = newBookingData;
       
       await update(ref(db), updates);
+      
+      console.log('🎯 Booking completed, updates sent:', updates);
       
       toast({ 
         title: "Seat Booked!", 
@@ -430,16 +463,33 @@ export function BookingClient({ seatId, activeBooking }: { seatId: string, activ
       </Button>
       
       <Card>
-        <CardHeader>
-          <CardTitle className="text-xl sm:text-2xl">
-            {booking ? "Booking Confirmed" : `Book Seat ${seatId}`}
+        <CardHeader className="relative">
+          <CardTitle className="text-xl sm:text-2xl pr-12">
+            {booking && booking.status === 'active' ? "Checked In" : booking ? "Booking Confirmed" : `Book Seat ${seatId}`}
           </CardTitle>
           <CardDescription>
-            {booking ? "Scan this QR code at the library entrance within the time limit." : "Select when you want to end your session."}
+            {booking && booking.status === 'active' 
+              ? "You have successfully checked into your seat." 
+              : booking 
+                ? "Scan this QR code at the library entrance within the time limit." 
+                : "Select when you want to end your session."
+            }
           </CardDescription>
+          {booking && booking.status === 'pending' && booking.seatId === seatId && (
+            <Button 
+              onClick={handleCancelBooking} 
+              variant="destructive" 
+              size="sm" 
+              className="absolute top-4 right-4 h-8 px-3"
+              disabled={loading}
+            >
+              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Cancel"}
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
-          {booking && (booking.status === 'pending' || booking.status === 'active') && booking.seatId === seatId ? (
+          {booking && booking.status === 'pending' && booking.seatId === seatId ? (
+            // Pending booking - show QR code and timer
             <div className="text-center flex flex-col items-center gap-6">
                 <div className="bg-white p-4 rounded-xl shadow-md border w-full max-w-xs mx-auto">
                     <QRCode 
@@ -454,14 +504,48 @@ export function BookingClient({ seatId, activeBooking }: { seatId: string, activ
                 </div>
                 <p className="text-muted-foreground -mt-4 text-sm sm:text-base">Time left to check-in</p>
                 <div className="flex flex-col sm:flex-row gap-3 w-full">
-                  <Button onClick={downloadQRCode} size="lg" className="flex-1">
-                      <Download className="mr-2 h-4 w-4" /> Download QR Code
+                  <Button onClick={() => router.push('/scanner')} size="lg" className="flex-1">
+                      <QrCode className="mr-2 h-4 w-4" /> Open Scanner
                   </Button>
-                  <Button onClick={handleCancelBooking} variant="destructive" size="lg" className="flex-1" disabled={loading}>
-                      {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                      Cancel Booking
+                  <Button onClick={downloadQRCode} variant="outline" size="lg" className="flex-1">
+                      <Download className="mr-2 h-4 w-4" /> Download QR
                   </Button>
                 </div>
+            </div>
+          ) : booking && booking.status === 'active' && booking.seatId === seatId ? (
+            // Active booking - show checked in confirmation
+            <div className="text-center flex flex-col items-center gap-6">
+              <Alert variant="default" className="bg-green-500/10 border-green-500/30">
+                <Info className="h-4 w-4 text-green-500" />
+                <AlertTitle className="text-green-600 dark:text-green-500">✅ Checked In Successfully!</AlertTitle>
+                <AlertDescription className="text-sm">
+                  You have successfully checked into seat {seatId}. Enjoy your study session!
+                </AlertDescription>
+              </Alert>
+
+              <div className="flex items-center gap-4 p-4 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800">
+                <Armchair className="h-12 w-12 sm:h-16 sm:w-16 text-green-500 flex-shrink-0" />
+                <div className="text-left">
+                  <h3 className="font-bold text-xl sm:text-2xl font-headline text-green-700 dark:text-green-400">Seat {seatId}</h3>
+                  <p className="text-sm sm:text-base text-green-600 dark:text-green-500">
+                    Status: <span className="font-semibold">Occupied</span>
+                  </p>
+                  {booking.entryTime && (
+                    <p className="text-xs text-green-600 dark:text-green-500 mt-1">
+                      Checked in at: {new Date(booking.entryTime).toLocaleTimeString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 w-full">
+                <Button onClick={() => router.push('/dashboard')} size="lg" className="flex-1">
+                  Go to Dashboard
+                </Button>
+                <Button onClick={() => router.push('/scanner')} variant="outline" size="lg" className="flex-1">
+                  <QrCode className="mr-2 h-4 w-4" /> Open Scanner (Exit)
+                </Button>
+              </div>
             </div>
           ) : booking && (booking.status === 'pending' || booking.status === 'active') && (seat.status === 'reserved' || seat.status === 'occupied') && seat.bookedBy === user?.uid ? (
             // User clicked on their already-booked seat - show cancel option

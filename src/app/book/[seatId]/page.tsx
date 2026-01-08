@@ -5,7 +5,7 @@ import { BookingClient } from "@/components/booking-client";
 import { useAuth } from "@/components/providers/auth-provider";
 import { db } from "@/lib/firebase";
 import { Booking } from "@/types";
-import { ref, onValue, off, query, orderByChild, equalTo } from "firebase/database";
+import { ref, onValue, off } from "firebase/database";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -29,23 +29,33 @@ export default function BookSeatPage({ params }: { params: Promise<{ seatId: str
             return;
         }
         
-        const activeBookingQuery = query(ref(db, `bookings/${user.uid}`), orderByChild('status'), equalTo('booked'));
+        // Check for any active or pending bookings
+        const bookingsRef = ref(db, `bookings/${user.uid}`);
         
-        const listener = onValue(activeBookingQuery, (snapshot) => {
+        const listener = onValue(bookingsRef, (snapshot) => {
             if (snapshot.exists()) {
                 const data = snapshot.val();
-                const [bookingId, bookingData] = Object.entries(data)[0];
-                const booking = { id: bookingId, ...(bookingData as any) };
-                setActiveBooking(booking);
+                // Find any booking with status 'pending' or 'active'
+                const activeBookingEntry = Object.entries(data).find(([_, bookingData]: [string, any]) => 
+                    bookingData.status === 'pending' || bookingData.status === 'active'
+                );
                 
-                // If user tries to book a different seat, redirect them
-                if (seatId && booking.seatId !== seatId) {
-                    toast({
-                        variant: 'destructive',
-                        title: 'Active Booking Exists',
-                        description: `You already have an active booking for seat ${booking.seatId}. Cancel it first to book another seat.`,
-                    });
-                    router.push(`/book/${booking.seatId}`);
+                if (activeBookingEntry) {
+                    const [bookingId, bookingData] = activeBookingEntry;
+                    const booking = { id: bookingId, ...(bookingData as any) };
+                    setActiveBooking(booking);
+                    
+                    // If user tries to book a different seat, redirect them
+                    if (seatId && booking.seatId !== seatId) {
+                        toast({
+                            variant: 'destructive',
+                            title: 'Active Booking Exists',
+                            description: `You already have an active booking for seat ${booking.seatId}. Cancel it first to book another seat.`,
+                        });
+                        router.push(`/book/${booking.seatId}`);
+                    }
+                } else {
+                    setActiveBooking(null);
                 }
             } else {
                 setActiveBooking(null);
@@ -53,7 +63,7 @@ export default function BookSeatPage({ params }: { params: Promise<{ seatId: str
             setLoading(false);
         });
 
-        return () => off(activeBookingQuery, 'value', listener);
+        return () => off(bookingsRef, 'value', listener);
 
     }, [user, authLoading, seatId, router, toast]);
 

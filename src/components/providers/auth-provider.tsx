@@ -6,6 +6,7 @@ import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import { ref, set, get } from "firebase/database";
 import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
+import { initializeUserRole } from '@/lib/user-roles';
 
 interface AuthContextType {
   user: User | null;
@@ -43,47 +44,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           
           // Only create/update if user doesn't exist or needs update
           if (!snapshot.exists()) {
-            // Creating user in Realtime DB
-            const newUserData: any = {
-              email: user.email || '',
-              displayName: user.displayName || user.email?.split('@')[0] || 'User',
-              createdAt: new Date().toISOString(),
-              stats: {
-                totalBookings: 0,
-                totalHours: 0,
-                noShows: 0,
-              },
-              restrictions: {
-                isFlagged: false,
-              },
-            };
-            
-            // Only add photoURL if it exists (not null/undefined)
-            if (user.photoURL) {
-              newUserData.photoURL = user.photoURL;
-            }
-            
-            await set(userRef, newUserData);
-          } else {
-            // Update email/displayName if changed
-            const userData = snapshot.val();
-            if (userData.email !== user.email || userData.displayName !== user.displayName) {
-              const updatedData: any = {
-                ...userData,
-                email: user.email || userData.email,
-                displayName: user.displayName || user.email?.split('@')[0] || userData.displayName,
-              };
-              
-              // Only update photoURL if it exists
-              if (user.photoURL) {
-                updatedData.photoURL = user.photoURL;
-              } else if (userData.photoURL === undefined) {
-                // Remove undefined photoURL from existing data
-                delete updatedData.photoURL;
-              }
-              
-              await set(userRef, updatedData);
-            }
+            // Initialize user with role
+            await initializeUserRole(user.uid, user.email || '', user.displayName || undefined);
           }
         } catch (error) {
           console.error('Error syncing user to Realtime DB:', error);
