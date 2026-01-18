@@ -131,8 +131,8 @@ We welcome contributions! Here's how you can help:
 </a>
 </td>
 <td align="center">
-<a href="https://github.com/tanishpoddar">
-<img src="https://github.com/tanishpoddar.png" width="100px;" alt="Tanish Poddar"/><br />
+<a href="https://github.com/tanisheesh">
+<img src="https://github.com/tanisheesh.png" width="100px;" alt="Tanish Poddar"/><br />
 <sub><b>Tanish Poddar</b></sub>
 </a>
 </td>

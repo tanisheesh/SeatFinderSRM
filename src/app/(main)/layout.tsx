@@ -246,7 +246,7 @@ export default function MainLayout({
                   Nidhi
                 </a>
                 ,{' '}
-                <a href="https://github.com/tanishpoddar" target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                <a href="https://github.com/tanisheesh" target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
                   Tanish
                 </a>
                 {' '}and{' '}

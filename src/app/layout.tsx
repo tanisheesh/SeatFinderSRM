@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   ],
   authors: [
     { name: "Nidhi Nayana", url: "https://github.com/nidhi-nayana" },
-    { name: "Tanish Poddar", url: "https://github.com/tanishpoddar" },
+    { name: "Tanish Poddar", url: "https://github.com/tanisheesh" },
     { name: "Nishant Ranjan", url: "https://github.com/nishant-codess" },
   ],
   creator: "Department of Computing Technologies, SRMIST",
